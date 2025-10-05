@@ -1,0 +1,5 @@
+pytest-cov
+bandit
+flake8
+black
+mypy

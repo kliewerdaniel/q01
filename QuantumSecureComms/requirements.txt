@@ -1,0 +1,5 @@
+click
+qiskit-aer
+liboqs-python
+cryptography
+numpy

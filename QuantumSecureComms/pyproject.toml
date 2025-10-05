@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quantumsecurecomm"
+version = "0.1.0"
+description = "Modular CLI tool demonstrating quantum-resilient cryptographic protocols"
+authors = [
+    {name = "Daniel Kliewer", email = "daniel.kliewer@example.com"},
+]
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "click",
+    "qiskit-aer",  # for Qiskit simulation
+    "liboqs-python",
+    "cryptography",
+    "numpy",
+    "hmac",  # for HKDF, but built-in
+    "hashlib",  # built-in
+]
+
+[project.scripts]
+qsecure = "qsecure.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["qsecure*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "--cov=qsecure --cov-report=term-missing"

@@ -137,8 +137,8 @@ QuantumSecureComms/
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/YourOrg/QuantumSecureComms.git
-cd QuantumSecureComms
+git clone https://github.com/kliewerdaniel/q01.git
+cd q01
 
 # 2. Create virtual environment
 python -m venv venv

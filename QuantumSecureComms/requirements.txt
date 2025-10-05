@@ -1,5 +1,6 @@
-click
-qiskit-aer
-liboqs-python
-cryptography
-numpy
+click>=8.0.0
+qiskit>=0.44.0
+qiskit-aer>=0.12.0
+liboqs-python>=0.8.0
+cryptography>=41.0.0
+numpy>=1.21.0

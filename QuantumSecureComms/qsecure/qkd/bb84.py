@@ -142,61 +142,162 @@ class Bob:
             print(f"Bob's measurements: {measurements[:10]}")
             print("Where bases match: correct bit; mismatch: random flip")
 
+class Eve:
+    """
+    Eve's eavesdropping role in BB84 protocol.
+
+    Eve intercepts photons, measures them in random bases, and resends
+    photons to Bob, potentially introducing detectable errors.
+    """
+
+    def __init__(self, interception_probability: float = 1.0):
+        """
+        Initialize Eve with interception strategy.
+
+        Args:
+            interception_probability (float): Fraction of photons Eve intercepts (0.0-1.0)
+        """
+        self.interception_probability = interception_probability
+        self.intercepted_count = 0
+        self.bases: List[str] = []
+        self.measurements: List[int] = []
+
+    def intercept_photons(self, alice: Alice, explain: bool = False) -> List[str]:
+        """
+        Intercept photons from Alice and measure/resend them.
+
+        Args:
+            alice (Alice): Alice's transmission
+            explain (bool): Enable detailed output
+
+        Returns:
+            List[str]: Photon polarizations after Eve's interference
+        """
+        if explain:
+            print("\n=== Eve's Interception ===")
+            print(f"Eve intercepts {self.interception_probability*100:.1f}% of photons")
+            print("Eve measures in random bases and resends photons to Bob")
+            print("This introduces errors that can be detected")
+
+        intercepted_polarizations = []
+        interception_decisions = [random.random() < self.interception_probability
+                                for _ in range(len(alice.polarizations))]
+
+        for i, (polar, original_polar, intercept) in enumerate(
+            zip(alice.polarizations, alice.polarizations, interception_decisions)):
+
+            if intercept:
+                # Eve intercepts and measures
+                eve_basis = random.choice(['+', 'x'])
+                self.bases.append(eve_basis)
+
+                # Measure photon in Eve's basis
+                if eve_basis == alice.bases[i]:
+                    # Same basis: correct measurement
+                    if eve_basis == '+':
+                        bit = 0 if polar in ['H', 'V'] and polar == 'H' else 1
+                    else:  # x basis
+                        bit = 0 if polar in ['D', 'A'] and polar == 'D' else 1
+                else:
+                    # Different basis: random result
+                    bit = random.randint(0, 1)
+
+                self.measurements.append(bit)
+                self.intercepted_count += 1
+
+                # Resend photon
+                # In real physics, Eve would need to prepare a new photon
+                # Here we simulate by sending the measured result
+                if alice.bases[i] == '+':
+                    resend_polar = 'H' if bit == 0 else 'V'
+                else:
+                    resend_polar = 'D' if bit == 0 else 'A'
+
+                intercepted_polarizations.append(resend_polar)
+
+                if explain and i < 5:
+                    print(f"Photon {i}: Alice sent {polar}, Eve measured {bit} in {eve_basis}, resent {resend_polar}")
+
+            else:
+                # Eve doesn't intercept this photon
+                intercepted_polarizations.append(original_polar)
+                self.bases.append(None)  # Not intercepted
+                self.measurements.append(None)
+
+        if explain:
+            interception_rate = self.intercepted_count / len(alice.polarizations)
+            print(f"Eve intercepted {self.intercepted_count}/{len(alice.polarizations)} photons ({interception_rate*100:.1f}%)")
+
+        return intercepted_polarizations
+
 class BB84Protocol:
     """
     Main BB84 QKD protocol simulation.
-    
+
     Coordinates Alice and Bob's actions, performs basis reconciliation,
     and computes QBER to detect eavesdropping.
+
+    Can optionally simulate Eve's interception.
     """
-    
-    def __init__(self, num_bits: int = 1024):
+
+    def __init__(self, num_bits: int = 1024, eve_interception: float = 0.0):
         """
-        Initialize BB84 protocol with key length.
-        
+        Initialize BB84 protocol with key length and eavesdropping.
+
         Args:
             num_bits (int): Desired key length
+            eve_interception (float): Probability Eve intercepts photons (0.0-1.0)
         """
         self.num_bits = num_bits
         self.alice = Alice(num_bits)
         self.bob = Bob(num_bits)
+        self.eve: Optional[Eve] = None
         self.matching_indices: List[int] = []
         self.final_key: List[int] = []
         self.qber: float = 0.0
         self.eve_detected = False
+
+        if eve_interception > 0.0:
+            self.eve = Eve(eve_interception)
         
     def run_protocol(self, explain: bool = False) -> Tuple[List[int], float, bool]:
         """
         Execute complete BB84 protocol.
-        
+
         Args:
             explain (bool): Enable step-by-step explanations
-            
+
         Returns:
             Tuple[List[int], float, bool]: (key, qber, eve_detected)
         """
         if explain:
             print("========== BB84 Quantum Key Distribution ==========")
-            
+
         # Phase 1: Alice encodes
         self.alice.generate_bits_and_bases(explain)
-        
-        # Phase 2: Bob measures
+
+        # Phase 2: Eve intercepts (if present)
+        if self.eve is not None:
+            intercepted_polarizations = self.eve.intercept_photons(self.alice, explain)
+            # Update Alice's polarizations with Eve's interference
+            self.alice.polarizations = intercepted_polarizations
+
+        # Phase 3: Bob measures
         self.bob.choose_measurement_bases(explain)
         self.bob.measure_photons(self.alice, explain)
-        
-        # Phase 3: Basis reconciliation (public channel)
+
+        # Phase 4: Basis reconciliation (public channel)
         self.reconcile_bases(explain)
-        
-        # Phase 4: Error estimation (QBER calculation)
+
+        # Phase 5: Error estimation (QBER calculation)
         self.estimate_errors(explain)
-        
+
         # Test for eavesdropping
         self.eve_detected = self.qber > 0.11  # Threshold ~10%
-        
+
         if explain:
             print(f"\nEavesdropping detection: {'YES' if self.eve_detected else 'NO'}")
-            
+
         return self.final_key, self.qber, self.eve_detected
     
     def reconcile_bases(self, explain: bool = False) -> None:
@@ -267,13 +368,29 @@ class BB84Protocol:
 def simulate_bb84(num_bits: int = 1024, explain: bool = False) -> Tuple[List[int], float, bool]:
     """
     Convenience function to run BB84 simulation.
-    
+
     Args:
         num_bits (int): Desired key length
         explain (bool): Enable explanations
-        
+
     Returns:
         Tuple[List[int], float, bool]: (key, qber, eve_detected)
     """
     protocol = BB84Protocol(num_bits)
+    return protocol.run_protocol(explain)
+
+def simulate_bb84_with_eve(num_bits: int = 1024, eve_interception: float = 1.0,
+                          explain: bool = False) -> Tuple[List[int], float, bool]:
+    """
+    Convenience function to run BB84 simulation with Eve's interception.
+
+    Args:
+        num_bits (int): Desired key length
+        eve_interception (float): Probability Eve intercepts photons (0.0-1.0)
+        explain (bool): Enable explanations
+
+    Returns:
+        Tuple[List[int], float, bool]: (key, qber, eve_detected)
+    """
+    protocol = BB84Protocol(num_bits, eve_interception=eve_interception)
     return protocol.run_protocol(explain)

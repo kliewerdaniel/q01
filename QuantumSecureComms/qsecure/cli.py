@@ -60,16 +60,22 @@ def qrng(ctx, bits, explain):
 @cli.command()
 @click.option('--protocol', default='BB84', type=click.Choice(['BB84']), help='QKD protocol to use')
 @click.option('--bits', default=1024, help='Number of quantum bits to exchange')
+@click.option('--eve', type=float, help='Eve interception probability (0.0-1.0)')
 @click.option('--explain', is_flag=True, help='Show step-by-step protocol details')
 @click.option('--output', help='Output file for key material (JSON)')
 @click.pass_context
-def qkd(ctx, protocol, bits, explain, output):
+def qkd(ctx, protocol, bits, eve, explain, output):
     """Simulate Quantum Key Distribution protocols"""
     if protocol == 'BB84':
         try:
-            key, qber, eve_detected = simulate_bb84(bits, explain=explain)
+            if eve is not None and eve > 0.0:
+                from .qkd.bb84 import simulate_bb84_with_eve
+                key, qber, eve_detected = simulate_bb84_with_eve(bits, eve_interception=eve, explain=explain)
+                click.echo(f"BB84 Protocol with Eve (interception: {eve*100:.1f}%) completed:")
+            else:
+                key, qber, eve_detected = simulate_bb84(bits, explain=explain)
+                click.echo(f"BB84 Protocol completed:")
 
-            click.echo(f"BB84 Protocol completed:")
             click.echo(f"Key length: {len(key)} bits")
             click.echo(f"QBER: {qber:.4f}")
             click.echo(f"Eavesdropping detected: {eve_detected}")
@@ -83,6 +89,7 @@ def qkd(ctx, protocol, bits, explain, output):
                     'key_bits': len(key),
                     'qber': qber,
                     'eve_detected': eve_detected,
+                    'eve_interception': eve if eve is not None else 0.0,
                     'key_hex': hex(int(''.join(map(str, key)), 2))[2:]
                 }
                 with open(output, 'w') as f:
@@ -231,12 +238,17 @@ def decrypt(ctx, input_file, hybrid, explain, qkd_key, kem_key, output):
 @click.option('--name', required=True, help='Your name/identifier')
 @click.option('--port', default=5000, help='Port to listen on')
 @click.option('--host', default='localhost', help='Host to bind to')
+@click.option('--server', is_flag=True, help='Run as server')
 @click.pass_context
-def chat(ctx, name, port, host):
-    """Start secure chat application (placeholder)"""
+def chat(ctx, name, port, host, server):
+    """Start secure chat application"""
+    from .comms.chat import start_secure_chat_server, start_secure_chat_client
+
     click.echo(f"Starting secure chat as {name} on {host}:{port}")
-    click.echo("Secure chat implementation coming soon...")
-    # TODO: Implement secure chat
+    if server:
+        start_secure_chat_server(host, port)
+    else:
+        start_secure_chat_client(name, host, port)
 
 
 if __name__ == '__main__':

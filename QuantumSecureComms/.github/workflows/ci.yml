@@ -1,0 +1,194 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.9, 3.10, 3.11]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+
+    - name: Install liboqs-python
+      run: |
+        pip install liboqs-python
+
+    - name: Run tests
+      run: |
+        python -m pytest tests/ -v --tb=short --cov=qsecure --cov-report=xml
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
+
+  security-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install security tools
+      run: |
+        pip install bandit safety
+
+    - name: Run Bandit security scan
+      run: |
+        bandit -r qsecure/ -f json -o bandit-results.json || true
+
+    - name: Check Safety (vulnerable dependencies)
+      run: |
+        safety check --json > safety-results.json || true
+
+    - name: Upload security scan results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-scans
+        path: |
+          bandit-results.json
+          safety-results.json
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install linting tools
+      run: |
+        pip install flake8 black isort mypy
+
+    - name: Run Black code formatting check
+      run: |
+        black --check --diff qsecure/ tests/
+
+    - name: Run isort import sorting check
+      run: |
+        isort --check-only --diff qsecure/ tests/
+
+    - name: Run flake8 linting
+      run: |
+        flake8 qsecure/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
+
+    - name: Run mypy type checking
+      run: |
+        mypy qsecure/ --ignore-missing-imports
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install build dependencies
+      run: |
+        pip install build
+
+    - name: Build package
+      run: |
+        python -m build
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: built-package
+        path: dist/
+
+  integration-test:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install package
+      run: |
+        pip install dist/quantumsecurecomms-*.tar.gz
+
+    - name: Run integration tests
+      run: |
+        # Test CLI commands
+        qsecure --help
+        qsecure qrng --bits 32
+        qsecure qkd --bits 128
+        qsecure keygen --algorithm Kyber512
+
+    - name: Test QKD with Eve simulation
+      run: |
+        qsecure qkd --bits 256 --eve 0.5 --explain
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [test, lint, build, integration-test]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install build dependencies
+      run: |
+        pip install build twine
+
+    - name: Build and publish to TestPyPI
+      if: github.event.inputs.release_type == 'test'
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
+      run: |
+        python -m build
+        twine upload --repository testpypi dist/*
+
+    - name: Build and publish to PyPI
+      if: github.event.inputs.release_type == 'production'
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        python -m build
+        twine upload dist/*

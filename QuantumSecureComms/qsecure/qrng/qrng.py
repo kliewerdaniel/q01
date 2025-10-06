@@ -6,8 +6,8 @@ It includes von Neumann debiasing to remove biases and entropy estimation.
 """
 
 import numpy as np
-from qiskit import QuantumCircuit, Aer, execute
-from qiskit.providers.aer import AerSimulator
+from qiskit import QuantumCircuit
+from qiskit_aer import AerSimulator
 from typing import List, Tuple
 import logging
 
@@ -51,7 +51,7 @@ class QuantumRNG:
             qc.h(0)  # Hadamard gate for superposition
             qc.measure(0, 0)
             
-            job = execute(qc, self.backend, shots=1)
+            job = self.backend.run(qc, shots=1)
             result = job.result()
             counts = result.get_counts(qc)
             
@@ -158,3 +158,17 @@ class QuantumRNG:
             print(f"Final bits: {final_bits}")
 
         return final_bits, entropy
+
+def generate_random_bits(num_bits: int, explain: bool = False) -> Tuple[List[int], float]:
+    """
+    Convenience function for generating random bits using QuantumRNG.
+
+    Args:
+        num_bits (int): Number of random bits to generate
+        explain (bool): If True, print step-by-step explanations
+
+    Returns:
+        Tuple[List[int], float]: Final bits and their entropy
+    """
+    qrng = QuantumRNG()
+    return qrng.generate_random_bits(num_bits, explain)

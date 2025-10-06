@@ -7,7 +7,7 @@ This module provides key generation, signing, and verification functions.
 
 import oqs
 from oqs import Signature
-from typing import Dict, bytes, bool
+from typing import Dict
 import logging
 
 logger = logging.getLogger(__name__)

@@ -11,7 +11,7 @@ import hashlib
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from typing import Tuple, bytes, Optional
+from typing import Tuple, Optional
 import logging
 
 logger = logging.getLogger(__name__)

@@ -6,8 +6,8 @@ This module provides key generation, encapsulation, and decapsulation functions.
 """
 
 import oqs
-from oqs import KEM
-from typing import Dict, Tuple, bytes, Optional
+from oqs import KeyEncapsulation
+from typing import Dict, Tuple, Optional
 import logging
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ class KyberKEM:
         
         self.variant = variant
         try:
-            self.kem = KEM(variant)
+            self.kem = KeyEncapsulation(variant)
             logger.info(f"Initialized Kyber KEM: {variant}")
         except Exception as e:
             logger.error(f"Failed to initialize Kyber {variant}: {e}")
